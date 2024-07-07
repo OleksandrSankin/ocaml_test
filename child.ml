@@ -1,8 +1,42 @@
 open Unix
 
 let server_socket = ref None
+let pid = getpid ()
 
 let random_number l r = Random.self_init (); l + Random.int r
+
+let close_server_socket () =
+  try
+    match !server_socket with
+    | Some sock ->
+        close sock;
+        Printf.printf "Server socket closed\n";
+        server_socket := None
+    | None ->
+        Printf.printf "No server socket to close\n"
+  with e -> ()
+
+let send_to_server message =
+  try
+    match !server_socket with
+    | Some sock ->
+      let message_bytes = Bytes.of_string message in
+      let bytes_sent = send sock message_bytes 0 (Bytes.length message_bytes) [] in
+      Printf.printf "Sent %d bytes to the server\n" bytes_sent
+    | None ->
+        Printf.printf "No server socket to send\n"
+    with e ->
+    close_server_socket ();
+    exit 0
+    
+let listen_for_messages sock =
+  let in_chan = in_channel_of_descr sock in
+  while true do
+    let ask = input_line in_chan in
+    let length = String.length ask in
+    let ack = "PID: " ^ string_of_int pid ^ ". Got " ^ string_of_int length ^ " bytes." in
+    send_to_server ack
+  done
 
 let connect_to_server server_ip server_port =
   let sock = socket PF_INET SOCK_STREAM 0 in
@@ -10,7 +44,8 @@ let connect_to_server server_ip server_port =
   let server_sockaddr = ADDR_INET (server_addr, server_port) in
   
   connect sock server_sockaddr;
-  server_socket := Some sock
+  server_socket := Some sock;
+  listen_for_messages sock
 
 let try_connect_to_server server_ip server_port =
   while !server_socket = None do
@@ -21,33 +56,9 @@ let try_connect_to_server server_ip server_port =
 	  sleep 3
   done
 
-let close_server_socket () =
-  try
-    match !server_socket with
-	  | Some sock ->
-	      close sock;
-	      Printf.printf "Server socket closed\n";
-	      server_socket := None
-	  | None ->
-	      Printf.printf "No server socket to close\n"
-  with e -> ()
-
-let send_to_server message =
-	try
-	  match !server_socket with
-	  | Some sock ->
-		  let message_bytes = Bytes.of_string message in
-		  let bytes_sent = send sock message_bytes 0 (Bytes.length message_bytes) [] in
-		  Printf.printf "Sent %d bytes to the server\n" bytes_sent
-	  | None ->
-	      Printf.printf "No server socket to send\n"
-    with e ->
-	  close_server_socket ();
-	  exit 0
-
 let keep_alive () = 
   while true do
-    let x = random_number 5 20 in sleep x;
+    let sec = random_number 5 20 in sleep sec;
     let pid = getpid () in 
     let alive = "PID: " ^ string_of_int pid ^ " ALIVE." in
     send_to_server alive
