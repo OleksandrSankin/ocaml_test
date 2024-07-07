@@ -1,12 +1,15 @@
 open Unix
 
-let number_of_child_processes = ref 0
+let list_of_child_process_pids = ref []
 
-let read_number_of_child_processes () = 
+let number_of_child_processes () = 
+   let num = ref 0 in
    Arg.parse 
-    [("-n", Arg.Set_int number_of_child_processes, "Set number of child processes")] 
+    [("-n", Arg.Set_int num, "Set number of child processes")] 
     (fun s -> ()) 
-    "parent -n <number_of_child_processes>"
+    "parent -n <number_of_child_processes>";
+   num
+
 
 let create_child_processes num = 
   for i = 1 to num do
@@ -29,7 +32,8 @@ let handle_client client_sock =
 
 let open_tcp_socket port = 
   let server_sock = socket PF_INET SOCK_STREAM 0 in
-  let server_addr = ADDR_INET (inet_addr_any, port) in
+  let localhost = inet_addr_of_string "127.0.0.1" in
+  let server_addr = ADDR_INET (localhost, port) in
 
   bind server_sock server_addr;
   listen server_sock 10;
@@ -50,8 +54,6 @@ let log message =
   let channel = open_out_gen [Open_append; Open_creat] 0o666 "log.txt" in
   try
     Printf.fprintf channel "%s\n" message;
-(*     output_string channel content;
-    output_string channel "\n"; *)
     flush channel;
     close_out channel
   with e ->
@@ -61,14 +63,12 @@ let log message =
 let create_child_process _ =
   match fork () with
   | 0 ->
-      (* This is the child process *)
       Printf.printf "In child process. PID: %d\n%!" (getpid ());
-      (* Replace the child process with a new program *)
-      execv "/bin/echo" [| "echo"; "Hello from the child process!" |]
+      (* execv "/bin/echo" [| "echo"; "Hello from the child process!" |] *)
+      execv "child" [||]
   | pid ->
-      (* This is the parent process *)
       Printf.printf "In parent process. Child PID: %d\n%!" pid;
-      (* Wait for the child process to finish *)
+      list_of_child_process_pids := !list_of_child_process_pids @ [pid];
       let (_, status) = waitpid [] pid in
       (match status with
       | WEXITED code -> Printf.printf "Child process exited with code %d\n%!" code
@@ -76,21 +76,29 @@ let create_child_process _ =
       | WSTOPPED signal -> Printf.printf "Child process was stopped by signal %d\n%!" signal)
 
 let () =
+  (* read_number_of_child_processes(); *)
+  log "sdlkfjsdlkfjsdlfkjsldfkj";
+  log "sdlkfjsdlkfjsdlfkjsldfkj";
+  log "sdlkfjsdlkfjsdlfkjsldfkj";
+  log "sdlkfjsdlkfjsdlfkjsldfkj";
+  log "sdlkfjsdlkfjsdlfkjsldfkj";
+  log "sdlkfjsdlkfjsdlfkjsldfkj";
 
-  log "sdlkfjsdlkfjsdlfkjsldfkj";
-  log "sdlkfjsdlkfjsdlfkjsldfkj";
-  log "sdlkfjsdlkfjsdlfkjsldfkj";
-  log "sdlkfjsdlkfjsdlfkjsldfkj";
-  log "sdlkfjsdlkfjsdlfkjsldfkj";
-  log "sdlkfjsdlkfjsdlfkjsldfkj";
-  
   (* let _ = Thread.create (fun () -> open_tcp_socket 54321) () in *)
 
   (* Thread.join thread1; *)
   (* Thread.create (fun () -> (open_tcp_socket 54321)) (); *)
   (* Printf.printf "Both threads have finished\n%!"; *)
+  
+ (*  let x = number_of_child_processes() in
+  Printf.printf "AAA%d\n%!" !x; *)
 
-  (* create_child_process; *)
+  let n = number_of_child_processes() in
+  for i = 1 to !n do
+    create_child_process ();
+  done;
+
+  (* Printf.printf "Original list: [%s]\n" (String.concat "; " (List.map string_of_int !list_of_child_process_pids)); *)
   (* read_number_of_child_processes(); *)
   (* open_tcp_socket 54321; *)
   (* create_child_processes !number_of_child_processes; *)
