@@ -33,6 +33,13 @@ let info message =
   with e ->
     close_out channel
 
+let create_child_process _ =
+  let child = "./child" in
+  let args = [| child; "127.0.0.1"; "54321" |] in
+  let pid = create_process child args stdin stdout stderr in
+  list_of_child_pids := !list_of_child_pids @ [pid];
+  let log = "Child process created. PID: " ^ string_of_int pid in info log
+
 let remove_socket target =
   list_of_child_sockets := 
   List.fold_right (fun x acc -> if x = target then acc else x :: acc) !list_of_child_sockets []
@@ -49,9 +56,12 @@ let handle_client client_sock =
   with
   | Exit -> 
     info "Client disconnected.";
-    remove_socket client_sock
+    remove_socket client_sock;
+    create_child_process ()
   | e -> 
-    let log = Printf.sprintf "Error: %s\n%!" (Printexc.to_string e) in info log
+    info "Client disconnected.";
+    remove_socket client_sock;
+    create_child_process ()
 
 let socket_handler addr port = 
     let server_sock = socket PF_INET SOCK_STREAM 0 in
@@ -88,12 +98,6 @@ let send_message_to_children message =
   for i = 0 to (List.length !list_of_child_sockets) - 1 do
     send_message_to_child (List.nth !list_of_child_sockets i) message
   done
-
-let create_child_process _ =
-  let child_program = "./child" in
-  let child_args = [| child_program; "127.0.0.1"; "54321" |] in
-  let pid = create_process child_program child_args stdin stdout stderr in
-  list_of_child_pids := !list_of_child_pids @ [pid]
 
 let main () =
 

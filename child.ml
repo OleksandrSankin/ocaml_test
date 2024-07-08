@@ -29,7 +29,8 @@ let send_to_server message =
     close_server_socket ();
     exit 0
     
-let listen_for_messages sock =
+
+let listen_messages sock =
   let in_chan = in_channel_of_descr sock in
   while true do
     let ask = input_line in_chan in
@@ -38,14 +39,20 @@ let listen_for_messages sock =
     send_to_server ack
   done
 
+let lister_server () =
+  try
+    match !server_socket with
+    | Some sock -> listen_messages sock
+    | None -> Printf.printf "No server socket to send\n"
+  with e -> ()
+
 let connect_to_server server_ip server_port =
   let sock = socket PF_INET SOCK_STREAM 0 in
   let server_addr = inet_addr_of_string server_ip in
   let server_sockaddr = ADDR_INET (server_addr, server_port) in
   
   connect sock server_sockaddr;
-  server_socket := Some sock;
-  listen_for_messages sock
+  server_socket := Some sock
 
 let try_connect_to_server server_ip server_port =
   while !server_socket = None do
@@ -74,9 +81,11 @@ let main () =
   let port = int_of_string Sys.argv.(2) in
   try_connect_to_server host port;
 
+  let listen_server_thread = Thread.create lister_server () in
   let keep_alive_thread = Thread.create keep_alive () in
   let shutdown_thread = Thread.create shutdown () in
 
+  Thread.join listen_server_thread;
   Thread.join keep_alive_thread;
   Thread.join shutdown_thread
 
