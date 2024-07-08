@@ -3,6 +3,7 @@ open Unix
 let list_of_child_pids = ref []
 let list_of_child_sockets = ref []
 
+let number_of_child_limit = 50
 let number_of_child_processes = ref 1
 let server_host = ref "127.0.0.1"
 let server_port = ref 54321
@@ -15,7 +16,13 @@ let read_params () =
       ("-p", Arg.Set_int server_port, "Set port to be listen on. Default 54321")
     ] 
     (fun s -> ()) 
-    "parent -n <number_of_child_processes> -h <server_host> -p <server_port>"
+    "parent -n <number_of_child_processes> -h <server_host> -p <server_port>";
+
+   if !number_of_child_processes <= 0 || !number_of_child_processes > number_of_child_limit 
+   then begin
+      Printf.printf "Number of child processes should be between 1 and 50\n";
+      exit 1
+   end
 
 let format_current_time () =
   let time = gmtime (time ()) in
@@ -75,7 +82,7 @@ let socket_handler addr port =
     let server_addr = ADDR_INET (localhost, port) in
 
     bind server_sock server_addr;
-    listen server_sock 100;
+    listen server_sock number_of_child_limit;
     let log = Printf.sprintf "Server listening on port %i." port in info log;
 
     while true do
