@@ -3,13 +3,19 @@ open Unix
 let list_of_child_pids = ref []
 let list_of_child_sockets = ref []
 
-let number_of_child_processes () = 
-   let num = ref 0 in
+let number_of_child_processes = ref 1
+let server_host = ref "127.0.0.1"
+let server_port = ref 54321
+
+let read_params () = 
    Arg.parse 
-    [("-n", Arg.Set_int num, "Set number of child processes")] 
+    [
+      ("-n", Arg.Set_int number_of_child_processes, "Set number of child processes. Should be >= 1 and <= 50. Default 1");
+      ("-h", Arg.Set_string server_host, "Set host to be listen on. Default 127.0.0.1");
+      ("-p", Arg.Set_int server_port, "Set port to be listen on. Default 54321")
+    ] 
     (fun s -> ()) 
-    "parent -n <number_of_child_processes>";
-   num
+    "parent -n <number_of_child_processes> -h <server_host> -p <server_port>"
 
 let format_current_time () =
   let time = gmtime (time ()) in
@@ -35,7 +41,7 @@ let info message =
 
 let create_child_process _ =
   let child = "./child" in
-  let args = [| child; "127.0.0.1"; "54321" |] in
+  let args = [| child; (!server_host); string_of_int (!server_port) |] in
   let pid = create_process child args stdin stdout stderr in
   list_of_child_pids := !list_of_child_pids @ [pid];
   let log = "Child process created. PID: " ^ string_of_int pid in info log
@@ -55,11 +61,11 @@ let handle_client client_sock =
     done
   with
   | Exit -> 
-    info "Client disconnected.";
+    info "Child disconnected.";
     remove_socket client_sock;
     create_child_process ()
   | e -> 
-    info "Client disconnected.";
+    info "Child disconnected.";
     remove_socket client_sock;
     create_child_process ()
 
@@ -76,7 +82,7 @@ let socket_handler addr port =
       let (client_sock, client_addr) = accept server_sock in
       match client_addr with
       | ADDR_INET (client_ip, client_port) ->
-          let log = Printf.sprintf "Client connected from %s:%d" (string_of_inet_addr client_ip) client_port in info log;
+          let log = Printf.sprintf "Child connected from %s:%d" (string_of_inet_addr client_ip) client_port in info log;
           list_of_child_sockets := !list_of_child_sockets @ [client_sock];
           let _ = Thread.create handle_client client_sock in ()
       | _ -> ()
@@ -100,10 +106,10 @@ let send_message_to_children message =
   done
 
 let main () =
+  read_params ();
+  start_listen_tcp_socket !server_host !server_port;
 
-  start_listen_tcp_socket "127.0.0.1" 54321;
-  let n = number_of_child_processes() in
-  for i = 1 to !n do
+  for i = 1 to !number_of_child_processes do
     create_child_process ();
   done;
 
