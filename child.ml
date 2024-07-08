@@ -10,7 +10,7 @@ let close_server_socket () =
     match !server_socket with
     | Some sock ->
         close sock;
-        Printf.printf "Server socket closed\n";
+        (* Printf.printf "Server socket closed\n"; *)
         server_socket := None
     | None ->
         Printf.printf "No server socket to close\n"
@@ -21,9 +21,9 @@ let send_to_server message =
     match !server_socket with
     | Some sock ->
       let message_bytes = Bytes.of_string message in
-      let bytes_sent = send sock message_bytes 0 (Bytes.length message_bytes) [] in
-      Printf.printf "Sent %d bytes to the server\n" bytes_sent
-    | None ->
+      let _ = send sock message_bytes 0 (Bytes.length message_bytes) [] in ()
+      (* Printf.printf "Sent %d bytes to the server\n" bytes_sent *)
+    | None -> 
         Printf.printf "No server socket to send\n"
     with e ->
     close_server_socket ();
@@ -73,7 +73,7 @@ let keep_alive () =
 let shutdown () = 
   let x = random_number 60 120 in sleep x;
   close_server_socket ();
-  Printf.printf "Goodbuy \n%!";
+  (* Printf.printf "Goodbuy \n%!"; *)
   exit 0
 
 let main () =
