@@ -34,7 +34,7 @@ let listen_for_messages sock =
   while true do
     let ask = input_line in_chan in
     let length = String.length ask in
-    let ack = "PID: " ^ string_of_int pid ^ ". Got " ^ string_of_int length ^ " bytes." in
+    let ack = "Response from child PID: " ^ string_of_int pid ^ ". Got " ^ string_of_int length ^ " bytes." in
     send_to_server ack
   done
 
@@ -59,8 +59,7 @@ let try_connect_to_server server_ip server_port =
 let keep_alive () = 
   while true do
     let sec = random_number 5 20 in sleep sec;
-    let pid = getpid () in 
-    let alive = "PID: " ^ string_of_int pid ^ " ALIVE." in
+    let alive = "Alive from PID: " ^ string_of_int pid in
     send_to_server alive
   done
 

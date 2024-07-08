@@ -11,6 +11,28 @@ let number_of_child_processes () =
     "parent -n <number_of_child_processes>";
    num
 
+let format_current_time () =
+  let time = gmtime (time ()) in
+  let year = 1900 + time.tm_year in
+  let month = time.tm_mon + 1 in
+  let day = time.tm_mday in
+  let hour = time.tm_hour in
+  let min = time.tm_min in
+  let sec = time.tm_sec in
+  let tm_usec = (gettimeofday () -. floor (gettimeofday ())) *. 1000.0 in
+  Printf.sprintf "%04d-%02d-%02dT%02d:%02d:%02d.%03dZ"
+    year month day hour min sec (int_of_float tm_usec)
+
+let info message =
+  let prefix = format_current_time () ^ "  INFO -- " in
+  let channel = open_out_gen [Open_append; Open_creat] 0o666 "log.txt" in
+  try
+    Printf.fprintf channel "%s%s\n" prefix message;
+    flush channel;
+    close_out channel
+  with e ->
+    close_out channel
+
 let remove_socket target =
   list_of_child_sockets := 
   List.fold_right (fun x acc -> if x = target then acc else x :: acc) !list_of_child_sockets []
@@ -19,17 +41,17 @@ let handle_client client_sock =
   let buffer = Bytes.create 1024 in
   try
     while true do
-      let bytes_read = read client_sock buffer 0 1024 in
-        if bytes_read = 0 then raise Exit;
-      let received_data = Bytes.sub_string buffer 0 bytes_read in
-        Printf.printf "Received: %s\n%!" received_data;
+      let bytes_read = read client_sock buffer 0 1024 in 
+       if bytes_read = 0 then raise Exit;
+      let received_data = Bytes.sub_string buffer 0 bytes_read in info received_data;
       ignore (write client_sock (Bytes.of_string received_data) 0 bytes_read)
     done
   with
   | Exit -> 
-    Printf.printf "Client disconnected\n%!";
+    info "Client disconnected.";
     remove_socket client_sock
-  | e -> Printf.printf "Error: %s\n%!" (Printexc.to_string e)
+  | e -> 
+    let log = Printf.sprintf "Error: %s\n%!" (Printexc.to_string e) in info log
 
 let socket_handler addr port = 
     let server_sock = socket PF_INET SOCK_STREAM 0 in
@@ -38,13 +60,13 @@ let socket_handler addr port =
 
     bind server_sock server_addr;
     listen server_sock 100;
-    Printf.printf "Server listening on port %i\n%!" port;
+    let log = Printf.sprintf "Server listening on port %i." port in info log;
 
     while true do
       let (client_sock, client_addr) = accept server_sock in
       match client_addr with
       | ADDR_INET (client_ip, client_port) ->
-          Printf.printf "Client connected from %s:%d\n%!" (string_of_inet_addr client_ip) client_port;
+          let log = Printf.sprintf "Client connected from %s:%d" (string_of_inet_addr client_ip) client_port in info log;
           list_of_child_sockets := !list_of_child_sockets @ [client_sock];
           let _ = Thread.create handle_client client_sock in ()
       | _ -> ()
@@ -60,42 +82,25 @@ let send_message_to_child socket message =
     let len = Bytes.length bytes in
     let _ = send socket bytes 0 len [] in ()
   with
-  | e -> Printf.printf "Error: %s\n%!" (Printexc.to_string e)
+  | e -> let log = Printf.sprintf "Error: %s\n%!" (Printexc.to_string e) in info log
 
 let send_message_to_children message = 
   for i = 0 to (List.length !list_of_child_sockets) - 1 do
     send_message_to_child (List.nth !list_of_child_sockets i) message
   done
 
-let log message =
-  let channel = open_out_gen [Open_append; Open_creat] 0o666 "log.txt" in
-  try
-    Printf.fprintf channel "%s\n" message;
-    flush channel;
-    close_out channel
-  with e ->
-    close_out channel;
-    raise e
-
 let create_child_process _ =
   let child_program = "./child" in
   let child_args = [| child_program; "127.0.0.1"; "54321" |] in
   let pid = create_process child_program child_args stdin stdout stderr in
-  let _, status = waitpid [] pid in
-  list_of_child_pids := !list_of_child_pids @ [pid];
-  match status with
-  | WEXITED code -> Printf.printf "Child exited with code %d\n" code
-  | WSIGNALED signal -> Printf.printf "Child killed by signal %d\n" signal
-  | WSTOPPED signal -> Printf.printf "Child stopped by signal %d\n" signal
+  list_of_child_pids := !list_of_child_pids @ [pid]
 
 let main () =
 
   start_listen_tcp_socket "127.0.0.1" 54321;
   let n = number_of_child_processes() in
   for i = 1 to !n do
-    Printf.printf "AAAA: ";
     create_child_process ();
-    Printf.printf "BBBB: ";
   done;
 
   while true do
