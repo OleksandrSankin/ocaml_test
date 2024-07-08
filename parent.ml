@@ -12,7 +12,8 @@ let number_of_child_processes () =
    num
 
 let remove_socket target =
-  list_of_child_sockets := List.fold_right (fun x acc -> if x = target then acc else x :: acc) !list_of_child_sockets []
+  list_of_child_sockets := 
+  List.fold_right (fun x acc -> if x = target then acc else x :: acc) !list_of_child_sockets []
 
 let handle_client client_sock =
   let buffer = Bytes.create 1024 in
@@ -77,25 +78,24 @@ let log message =
     raise e
 
 let create_child_process _ =
-  match fork () with
-  | 0 ->
-      Printf.printf "In child process. PID: %d\n%!" (getpid ());
-      execv "child" [||]
-  | pid ->
-      Printf.printf "In parent process. Child PID: %d\n%!" pid;
-      list_of_child_pids := !list_of_child_pids @ [pid];
-      let (_, status) = waitpid [] pid in
-      (match status with
-      | WEXITED code -> Printf.printf "Child process exited with code %d\n%!" code
-      | WSIGNALED signal -> Printf.printf "Child process was killed by signal %d\n%!" signal
-      | WSTOPPED signal -> Printf.printf "Child process was stopped by signal %d\n%!" signal)
+  let child_program = "./child" in
+  let child_args = [| child_program; "127.0.0.1"; "54321" |] in
+  let pid = create_process child_program child_args stdin stdout stderr in
+  let _, status = waitpid [] pid in
+  list_of_child_pids := !list_of_child_pids @ [pid];
+  match status with
+  | WEXITED code -> Printf.printf "Child exited with code %d\n" code
+  | WSIGNALED signal -> Printf.printf "Child killed by signal %d\n" signal
+  | WSTOPPED signal -> Printf.printf "Child stopped by signal %d\n" signal
 
 let main () =
 
   start_listen_tcp_socket "127.0.0.1" 54321;
   let n = number_of_child_processes() in
   for i = 1 to !n do
+    Printf.printf "AAAA: ";
     create_child_process ();
+    Printf.printf "BBBB: ";
   done;
 
   while true do

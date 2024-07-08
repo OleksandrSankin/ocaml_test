@@ -71,7 +71,9 @@ let shutdown () =
   exit 0
 
 let main () =
-  try_connect_to_server "127.0.0.1" 54321;
+  let host = Sys.argv.(1) in
+  let port = int_of_string Sys.argv.(2) in
+  try_connect_to_server host port;
 
   let keep_alive_thread = Thread.create keep_alive () in
   let shutdown_thread = Thread.create shutdown () in
